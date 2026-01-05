@@ -1,0 +1,29 @@
+/* ================================
+   전역 스타일 (Tailwind CSS)
+   ================================ */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 기본 body 스타일 */
+body {
+  @apply bg-gray-100;
+}
+
+/* 스크롤바 커스터마이징 (선택적) */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-gray-100;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-gray-300 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-gray-400;
+}
