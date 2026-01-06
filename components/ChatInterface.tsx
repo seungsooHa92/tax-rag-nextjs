@@ -4,36 +4,30 @@
 // ChatInterface 컴포넌트
 // ================================
 // 사용자와 AI가 대화하는 채팅 UI입니다.
-// TanStack Query를 사용하여 API 호출을 관리합니다.
+// TanStack Query + Zustand로 상태 관리
 //
 // [주요 기능]
 // 1. 사용자 입력 받기
 // 2. API 호출 (useMutation)
-// 3. 채팅 히스토리 표시
+// 3. 채팅 히스토리 표시 (임베딩별 저장)
 // 4. 로딩 상태 표시
-//
-// [TanStack Query 사용 이유]
-// - 로딩/에러 상태 자동 관리
-// - 캐싱 기능
-// - 재시도 로직
-// - TypeScript 타입 안전성
 
 import { useState, useRef, useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
 import axios from "axios";
-import { ChatMessage, ChatRequest, ChatResponse } from "@/types";
+import { ChatRequest, ChatResponse, EmbeddingType } from "@/types";
+import { useChatStore } from "@/store/chat-store";
 
 // ================================
 // API 호출 함수
 // ================================
-// axios를 사용하여 BE의 /api/chat 엔드포인트를 호출합니다.
 
-async function sendMessage(query: string): Promise<ChatResponse> {
-  const request: ChatRequest = { query };
-
-  // POST /api/chat 호출
+async function sendMessage(
+  query: string,
+  embeddingType: EmbeddingType
+): Promise<ChatResponse> {
+  const request: ChatRequest = { query, embeddingType };
   const { data } = await axios.post<ChatResponse>("/api/chat", request);
-
   return data;
 }
 
@@ -42,43 +36,34 @@ async function sendMessage(query: string): Promise<ChatResponse> {
 // ================================
 
 export default function ChatInterface() {
-  // ===== 상태 관리 =====
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // ===== TanStack Query Mutation 설정 =====
-  // useMutation: 데이터를 변경하는 비동기 작업에 사용
-  // useQuery는 데이터 조회용, useMutation은 생성/수정/삭제용
-  const mutation = useMutation({
-    // mutationFn: 실제 API 호출 함수
-    mutationFn: sendMessage,
+  // Zustand 스토어에서 상태 가져오기
+  const { embeddingType, messagesByType, addMessage } = useChatStore();
+  const messages = messagesByType[embeddingType];
 
-    // onSuccess: API 호출 성공 시 실행
+  // ===== TanStack Query Mutation 설정 =====
+  const mutation = useMutation({
+    mutationFn: (query: string) => sendMessage(query, embeddingType),
+
     onSuccess: (data) => {
-      // AI 응답을 채팅 히스토리에 추가
-      const assistantMessage: ChatMessage = {
+      addMessage({
         role: "assistant",
         content: data.answer,
-      };
-      setMessages((prev) => [...prev, assistantMessage]);
+      });
     },
 
-    // onError: API 호출 실패 시 실행
-    onError: (error) => {
+    onError: (error: Error) => {
       console.error("API 호출 실패:", error);
-
-      // 에러 메시지를 채팅 히스토리에 추가
-      const errorMessage: ChatMessage = {
+      addMessage({
         role: "assistant",
-        content: "죄송합니다. 답변 생성 중 오류가 발생했습니다. 다시 시도해주세요.",
-      };
-      setMessages((prev) => [...prev, errorMessage]);
+        content: `죄송합니다. 답변 생성 중 오류가 발생했습니다. ${error.message}`,
+      });
     },
   });
 
   // ===== 스크롤 자동 이동 =====
-  // 새 메시지가 추가되면 자동으로 스크롤을 맨 아래로 이동
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -86,34 +71,39 @@ export default function ChatInterface() {
   // ===== 메시지 전송 핸들러 =====
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    // 빈 입력이면 무시
     if (!input.trim()) return;
 
-    // 사용자 메시지를 채팅 히스토리에 추가
-    const userMessage: ChatMessage = {
+    addMessage({
       role: "user",
       content: input,
-    };
-    setMessages((prev) => [...prev, userMessage]);
+    });
 
-    // 입력 필드 초기화
     const query = input;
     setInput("");
-
-    // API 호출 (mutation 실행)
     mutation.mutate(query);
   };
 
+  // ===== 임베딩 타입 표시 이름 =====
+  const embeddingName = embeddingType === "openai" ? "OpenAI" : "Upstage";
+
   // ===== 렌더링 =====
   return (
-    <div className="flex flex-col h-[600px] max-w-3xl mx-auto bg-white rounded-lg shadow-lg overflow-hidden">
+    <div className="flex flex-col h-full bg-white">
       {/* ===== 헤더 ===== */}
       <div className="bg-blue-600 text-white px-6 py-4">
-        <h2 className="text-xl font-bold">🏛️ 소득세법 AI 상담</h2>
-        <p className="text-sm text-blue-100 mt-1">
-          소득세에 관한 질문을 해주세요. RAG 기반으로 답변해드립니다.
-        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-bold">소득세법 AI 상담</h2>
+            <p className="text-sm text-blue-100 mt-1">
+              RAG 기반 소득세 질의응답 시스템
+            </p>
+          </div>
+          <div className="text-right">
+            <span className="inline-block px-2 py-1 bg-blue-500 rounded text-xs">
+              {embeddingName} Embedding
+            </span>
+          </div>
+        </div>
       </div>
 
       {/* ===== 채팅 메시지 영역 ===== */}
@@ -121,11 +111,14 @@ export default function ChatInterface() {
         {/* 초기 안내 메시지 */}
         {messages.length === 0 && (
           <div className="text-center text-gray-500 mt-8">
-            <p className="text-lg mb-2">👋 안녕하세요!</p>
+            <p className="text-lg mb-2">안녕하세요!</p>
             <p className="text-sm">
               소득세에 관한 질문을 입력해주세요.
               <br />
               예: &quot;연봉 7천만원인 직장인의 소득세는 얼마인가요?&quot;
+            </p>
+            <p className="text-xs text-gray-400 mt-4">
+              현재 {embeddingName} 임베딩을 사용합니다
             </p>
           </div>
         )}
@@ -145,7 +138,6 @@ export default function ChatInterface() {
                   : "bg-white border border-gray-200 text-gray-800"
               }`}
             >
-              {/* 역할 표시 */}
               <div
                 className={`text-xs mb-1 ${
                   message.role === "user" ? "text-blue-100" : "text-gray-500"
@@ -153,8 +145,6 @@ export default function ChatInterface() {
               >
                 {message.role === "user" ? "나" : "AI 상담사"}
               </div>
-
-              {/* 메시지 내용 */}
               <div className="whitespace-pre-wrap">{message.content}</div>
             </div>
           </div>
@@ -177,18 +167,22 @@ export default function ChatInterface() {
                     style={{ animationDelay: "0.2s" }}
                   />
                 </div>
-                <span className="text-gray-500 text-sm">답변 생성 중...</span>
+                <span className="text-gray-500 text-sm">
+                  {embeddingName}로 검색 중...
+                </span>
               </div>
             </div>
           </div>
         )}
 
-        {/* 스크롤 앵커 */}
         <div ref={messagesEndRef} />
       </div>
 
       {/* ===== 입력 영역 ===== */}
-      <form onSubmit={handleSubmit} className="border-t border-gray-200 p-4 bg-white">
+      <form
+        onSubmit={handleSubmit}
+        className="border-t border-gray-200 p-4 bg-white"
+      >
         <div className="flex space-x-3">
           <input
             type="text"
@@ -206,8 +200,6 @@ export default function ChatInterface() {
             {mutation.isPending ? "전송 중..." : "전송"}
           </button>
         </div>
-
-        {/* 힌트 텍스트 */}
         <p className="text-xs text-gray-400 mt-2">
           Enter 키를 누르거나 전송 버튼을 클릭하세요
         </p>
