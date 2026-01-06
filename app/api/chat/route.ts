@@ -6,45 +6,36 @@
 //
 // [요청 형식]
 // POST /api/chat
-// Body: { "query": "사용자 질문" }
+// Body: { "query": "사용자 질문", "embeddingType": "openai" | "upstage" }
 //
 // [응답 형식]
 // { "answer": "AI 답변", "sources": ["참고 문서 1", "참고 문서 2", ...] }
-//
-// [Python 비교]
-// Python에서는 FastAPI나 Flask로 별도 서버를 구성해야 했지만,
-// Next.js에서는 app/api 폴더 내 route.ts 파일 하나로 API를 만들 수 있습니다.
 
 import { NextRequest, NextResponse } from "next/server";
-import { askQuestion, initializeVectorStore } from "@/lib/rag";
-import { ChatRequest, ChatResponse } from "@/types";
+import { askQuestion, initializeVectorStore, isVectorStoreInitialized } from "@/lib/rag";
+import { ChatRequest, ChatResponse, EmbeddingType } from "@/types";
 
 // ================================
-// 서버 시작 시 벡터 스토어 초기화
+// 벡터 스토어 초기화 관리
 // ================================
-// 첫 번째 요청이 들어오기 전에 벡터 스토어를 미리 초기화합니다.
-// 이렇게 하면 첫 질문에 대한 응답 시간이 단축됩니다.
-let initialized = false;
 
-async function ensureInitialized() {
-  if (!initialized) {
-    console.log("벡터 스토어 초기화 중...");
-    await initializeVectorStore();
-    initialized = true;
-    console.log("벡터 스토어 초기화 완료!");
+async function ensureInitialized(embeddingType: EmbeddingType) {
+  if (!isVectorStoreInitialized(embeddingType)) {
+    console.log(`[${embeddingType}] 벡터 스토어 초기화 중...`);
+    await initializeVectorStore(embeddingType);
+    console.log(`[${embeddingType}] 벡터 스토어 초기화 완료!`);
   }
 }
 
 // ================================
 // POST 핸들러 - 질문 처리
 // ================================
-// FE에서 axios.post('/api/chat', { query: '질문' }) 형태로 호출합니다.
 
 export async function POST(request: NextRequest) {
   try {
-    // 1. 요청 바디에서 질문 추출
+    // 1. 요청 바디에서 질문 및 임베딩 타입 추출
     const body: ChatRequest = await request.json();
-    const { query } = body;
+    const { query, embeddingType = "openai" } = body;
 
     // 2. 질문 유효성 검사
     if (!query || typeof query !== "string" || query.trim() === "") {
@@ -54,22 +45,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log(`\n========== 새로운 질문 ==========`);
+    // 3. 임베딩 타입 유효성 검사
+    if (embeddingType !== "openai" && embeddingType !== "upstage") {
+      return NextResponse.json(
+        { error: "지원하지 않는 임베딩 타입입니다. (openai 또는 upstage)" },
+        { status: 400 }
+      );
+    }
+
+    console.log(`\n========== 새로운 질문 [${embeddingType}] ==========`);
     console.log(`질문: ${query}`);
 
-    // 3. 벡터 스토어 초기화 확인
-    await ensureInitialized();
+    // 4. 벡터 스토어 초기화 확인
+    await ensureInitialized(embeddingType);
 
-    // 4. RAG 파이프라인 실행
-    // - 질문을 임베딩으로 변환
-    // - 벡터 DB에서 유사 문서 검색
-    // - 검색된 문서 + 질문으로 프롬프트 구성
-    // - LLM으로 답변 생성
-    const { answer, sources } = await askQuestion(query);
+    // 5. RAG 파이프라인 실행
+    const { answer, sources } = await askQuestion(query, embeddingType);
 
     console.log(`답변 생성 완료: ${answer.substring(0, 100)}...`);
 
-    // 5. 응답 반환
+    // 6. 응답 반환
     const response: ChatResponse = {
       answer,
       sources,
@@ -80,11 +75,18 @@ export async function POST(request: NextRequest) {
     // 에러 처리
     console.error("API 에러:", error);
 
-    // OpenAI API 키 관련 에러 처리
     if (error instanceof Error) {
-      if (error.message.includes("API key")) {
+      // OpenAI API 키 관련 에러
+      if (error.message.includes("API key") || error.message.includes("OpenAI")) {
         return NextResponse.json(
           { error: "OpenAI API 키가 설정되지 않았습니다. .env.local 파일을 확인해주세요." },
+          { status: 500 }
+        );
+      }
+      // Upstage API 키 관련 에러
+      if (error.message.includes("Upstage") || error.message.includes("UPSTAGE")) {
+        return NextResponse.json(
+          { error: "Upstage API 키가 설정되지 않았습니다. .env.local 파일을 확인해주세요." },
           { status: 500 }
         );
       }
@@ -98,14 +100,16 @@ export async function POST(request: NextRequest) {
 }
 
 // ================================
-// GET 핸들러 - 상태 확인 (선택적)
+// GET 핸들러 - 상태 확인
 // ================================
-// API 상태를 확인하는 용도로 사용할 수 있습니다.
 
 export async function GET() {
   return NextResponse.json({
     status: "ok",
     message: "소득세 RAG API가 정상 작동 중입니다.",
-    initialized,
+    initialized: {
+      openai: isVectorStoreInitialized("openai"),
+      upstage: isVectorStoreInitialized("upstage"),
+    },
   });
 }

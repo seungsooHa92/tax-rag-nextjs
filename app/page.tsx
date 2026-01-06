@@ -1,56 +1,67 @@
+"use client";
+
 // ================================
 // 메인 페이지
 // ================================
 // 소득세법 AI 상담 서비스의 메인 페이지입니다.
-// ChatInterface 컴포넌트를 렌더링합니다.
+// Sidebar와 ChatInterface를 조합하여 렌더링합니다.
 //
-// [Next.js App Router 특징]
-// - app/page.tsx는 루트 경로(/)에 해당하는 페이지
-// - Server Component가 기본값 (필요시 "use client" 추가)
-// - 이 페이지는 ChatInterface를 렌더링만 하므로 Server Component로 유지
+// [상태 관리] - Zustand
+// - 임베딩별로 대화 내용 별도 저장
+// - 임베딩 변경 시 대화 유지
 
 import ChatInterface from "@/components/ChatInterface";
+import Sidebar from "@/components/Sidebar";
+import { useChatStore } from "@/store/chat-store";
 
 export default function Home() {
+  const { embeddingType, setEmbeddingType } = useChatStore();
+
   return (
-    <main className="min-h-screen py-8 px-4">
-      {/* 페이지 제목 */}
-      <div className="max-w-3xl mx-auto mb-6">
-        <h1 className="text-3xl font-bold text-gray-800 text-center">
-          📚 소득세법 AI 상담
-        </h1>
-        <p className="text-gray-600 text-center mt-2">
-          RAG (Retrieval-Augmented Generation) 기반 AI 상담 서비스
-        </p>
+    <div className="flex h-screen bg-gray-100">
+      {/* 사이드바 */}
+      <Sidebar
+        selectedEmbedding={embeddingType}
+        onSelect={setEmbeddingType}
+      />
 
-        {/* 기술 스택 배지 */}
-        <div className="flex justify-center gap-2 mt-4">
-          <span className="px-3 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
-            Next.js
-          </span>
-          <span className="px-3 py-1 bg-green-100 text-green-800 text-xs rounded-full">
-            LangChain.js
-          </span>
-          <span className="px-3 py-1 bg-purple-100 text-purple-800 text-xs rounded-full">
-            OpenAI
-          </span>
-          <span className="px-3 py-1 bg-orange-100 text-orange-800 text-xs rounded-full">
-            TanStack Query
-          </span>
+      {/* 메인 콘텐츠 */}
+      <main className="flex-1 flex flex-col overflow-hidden">
+        {/* 상단 헤더 */}
+        <header className="bg-white border-b border-gray-200 px-6 py-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-lg font-semibold text-gray-800">
+                소득세법 AI 상담
+              </h1>
+              <p className="text-xs text-gray-500">
+                RAG 기반 질의응답 시스템
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">
+                Next.js
+              </span>
+              <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded">
+                LangChain.js
+              </span>
+              <span className="px-2 py-1 bg-purple-100 text-purple-800 text-xs rounded">
+                {embeddingType === "openai" ? "OpenAI" : "Upstage"}
+              </span>
+            </div>
+          </div>
+        </header>
+
+        {/* 채팅 영역 */}
+        <div className="flex-1 overflow-hidden">
+          <ChatInterface />
         </div>
-      </div>
 
-      {/* 채팅 인터페이스 */}
-      <ChatInterface />
-
-      {/* 푸터 */}
-      <footer className="max-w-3xl mx-auto mt-6 text-center text-sm text-gray-500">
-        <p>
-          이 서비스는 학습 목적으로 만들어졌습니다.
-          <br />
-          실제 법률 상담은 전문가에게 문의하세요.
-        </p>
-      </footer>
-    </main>
+        {/* 푸터 */}
+        <footer className="bg-white border-t border-gray-200 px-6 py-2 text-center text-xs text-gray-500">
+          이 서비스는 학습 목적으로 만들어졌습니다. 실제 법률 상담은 전문가에게 문의하세요.
+        </footer>
+      </main>
+    </div>
   );
 }
