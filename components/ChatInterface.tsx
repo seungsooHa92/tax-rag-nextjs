@@ -5,18 +5,23 @@
 // ================================
 // 사용자와 AI가 대화하는 채팅 UI입니다.
 // TanStack Query + Zustand로 상태 관리
-//
-// [주요 기능]
-// 1. 사용자 입력 받기
-// 2. API 호출 (useMutation)
-// 3. 채팅 히스토리 표시 (임베딩별 저장)
-// 4. 로딩 상태 표시
 
 import { useState, useRef, useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
 import axios from "axios";
-import { ChatRequest, ChatResponse, EmbeddingType } from "@/types";
+import { ChatRequest, ChatResponse, ModelType } from "@/types";
 import { useChatStore } from "@/store/chat-store";
+
+// ================================
+// 모델 이름 매핑
+// ================================
+
+const MODEL_NAMES: Record<ModelType, string> = {
+  openai: "OpenAI",
+  upstage: "Upstage",
+  "openai-pinecone": "OpenAI + Pinecone",
+  "upstage-pinecone": "Upstage + Pinecone",
+};
 
 // ================================
 // API 호출 함수
@@ -24,9 +29,9 @@ import { useChatStore } from "@/store/chat-store";
 
 async function sendMessage(
   query: string,
-  embeddingType: EmbeddingType
+  modelType: ModelType
 ): Promise<ChatResponse> {
-  const request: ChatRequest = { query, embeddingType };
+  const request: ChatRequest = { query, modelType };
   const { data } = await axios.post<ChatResponse>("/api/chat", request);
   return data;
 }
@@ -40,12 +45,12 @@ export default function ChatInterface() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Zustand 스토어에서 상태 가져오기
-  const { embeddingType, messagesByType, addMessage } = useChatStore();
-  const messages = messagesByType[embeddingType];
+  const { modelType, messagesByType, addMessage } = useChatStore();
+  const messages = messagesByType[modelType];
 
   // ===== TanStack Query Mutation 설정 =====
   const mutation = useMutation({
-    mutationFn: (query: string) => sendMessage(query, embeddingType),
+    mutationFn: (query: string) => sendMessage(query, modelType),
 
     onSuccess: (data) => {
       addMessage({
@@ -83,8 +88,8 @@ export default function ChatInterface() {
     mutation.mutate(query);
   };
 
-  // ===== 임베딩 타입 표시 이름 =====
-  const embeddingName = embeddingType === "openai" ? "OpenAI" : "Upstage";
+  // ===== 모델 표시 이름 =====
+  const modelName = MODEL_NAMES[modelType];
 
   // ===== 렌더링 =====
   return (
@@ -100,7 +105,7 @@ export default function ChatInterface() {
           </div>
           <div className="text-right">
             <span className="inline-block px-2 py-1 bg-blue-500 rounded text-xs">
-              {embeddingName} Embedding
+              {modelName}
             </span>
           </div>
         </div>
@@ -118,7 +123,7 @@ export default function ChatInterface() {
               예: &quot;연봉 7천만원인 직장인의 소득세는 얼마인가요?&quot;
             </p>
             <p className="text-xs text-gray-400 mt-4">
-              현재 {embeddingName} 임베딩을 사용합니다
+              현재 {modelName} 모델을 사용합니다
             </p>
           </div>
         )}
@@ -168,7 +173,7 @@ export default function ChatInterface() {
                   />
                 </div>
                 <span className="text-gray-500 text-sm">
-                  {embeddingName}로 검색 중...
+                  {modelName}로 검색 중...
                 </span>
               </div>
             </div>

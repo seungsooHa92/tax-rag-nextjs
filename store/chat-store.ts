@@ -1,35 +1,37 @@
 import { create } from "zustand";
-import { ChatMessage, EmbeddingType } from "@/types";
+import { ChatMessage, ModelType } from "@/types";
 
 interface ChatStore {
-  // 임베딩별 메시지 저장
-  messagesByType: Record<EmbeddingType, ChatMessage[]>;
+  // 모델별 메시지 저장
+  messagesByType: Record<ModelType, ChatMessage[]>;
 
-  // 현재 선택된 임베딩
-  embeddingType: EmbeddingType;
+  // 현재 선택된 모델
+  modelType: ModelType;
 
   // Actions
-  setEmbeddingType: (type: EmbeddingType) => void;
+  setModelType: (type: ModelType) => void;
   addMessage: (message: ChatMessage) => void;
-  clearMessages: (type?: EmbeddingType) => void;
+  clearMessages: (type?: ModelType) => void;
 }
 
 export const useChatStore = create<ChatStore>((set) => ({
   messagesByType: {
     openai: [],
     upstage: [],
+    "openai-pinecone": [],
+    "upstage-pinecone": [],
   },
 
-  embeddingType: "openai",
+  modelType: "openai",
 
-  setEmbeddingType: (type) => set({ embeddingType: type }),
+  setModelType: (type) => set({ modelType: type }),
 
   addMessage: (message) =>
     set((state) => ({
       messagesByType: {
         ...state.messagesByType,
-        [state.embeddingType]: [
-          ...state.messagesByType[state.embeddingType],
+        [state.modelType]: [
+          ...state.messagesByType[state.modelType],
           message,
         ],
       },
@@ -39,6 +41,11 @@ export const useChatStore = create<ChatStore>((set) => ({
     set((state) => ({
       messagesByType: type
         ? { ...state.messagesByType, [type]: [] }
-        : { openai: [], upstage: [] },
+        : {
+            openai: [],
+            upstage: [],
+            "openai-pinecone": [],
+            "upstage-pinecone": [],
+          },
     })),
 }));

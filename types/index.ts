@@ -3,11 +3,17 @@
 // ================================
 
 /**
- * 임베딩 모델 타입
- * - openai: OpenAI text-embedding-3-large
- * - upstage: Upstage solar-embedding-1-large
+ * 모델 타입 (임베딩 + 벡터스토어 조합)
+ * - openai: OpenAI + Memory
+ * - upstage: Upstage + Memory
+ * - openai-pinecone: OpenAI + Pinecone
+ * - upstage-pinecone: Upstage + Pinecone
  */
-export type EmbeddingType = "openai" | "upstage";
+export type ModelType =
+  | "openai"
+  | "upstage"
+  | "openai-pinecone"
+  | "upstage-pinecone";
 
 /**
  * 채팅 메시지 타입
@@ -22,11 +28,11 @@ export interface ChatMessage {
 /**
  * API 요청 타입 (FE → BE)
  * - query: 사용자의 질문
- * - embeddingType: 사용할 임베딩 모델
+ * - modelType: 사용할 모델 조합
  */
 export interface ChatRequest {
   query: string;
-  embeddingType: EmbeddingType;
+  modelType: ModelType;
 }
 
 /**
