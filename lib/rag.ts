@@ -7,6 +7,10 @@
 // 1. OpenAI: text-embedding-3-large
 // 2. Upstage: solar-embedding-1-large (query/passage 분리)
 //
+// [지원 LLM 모델]
+// 1. OpenAI: gpt-4o-mini
+// 2. Upstage: solar-pro2
+//
 // [임베딩별 VectorStore 관리]
 // - 각 임베딩 모델별로 별도의 VectorStore를 유지
 // - 첫 요청 시 해당 임베딩의 VectorStore만 lazy 초기화
@@ -61,20 +65,41 @@ function getEmbeddings(type: EmbeddingType): OpenAIEmbeddings {
 }
 
 // ================================
-// LLM 설정
+// LLM 인스턴스 생성
 // ================================
-// 답변 생성에는 동일한 LLM 사용 (gpt-4o-mini)
+// 임베딩 타입에 따라 다른 LLM 사용
+// - openai: gpt-4o-mini
+// - upstage: solar-pro2
 
-const llm = new ChatOpenAI({
-  model: "gpt-4o-mini",
-  temperature: 0,
-});
+function getLLM(type: EmbeddingType): ChatOpenAI {
+  switch (type) {
+    case "openai":
+      return new ChatOpenAI({
+        model: "gpt-4o-mini",
+        temperature: 0,
+      });
+    case "upstage":
+      // Upstage API는 OpenAI SDK와 호환 - baseURL만 변경
+      return new ChatOpenAI({
+        openAIApiKey: process.env.UPSTAGE_API_KEY,
+        configuration: {
+          baseURL: "https://api.upstage.ai/v1",
+        },
+        model: "solar-pro2",
+        temperature: 0,
+      });
+    default:
+      throw new Error(`지원하지 않는 LLM 타입: ${type}`);
+  }
+}
 
 // ================================
 // 벡터 스토어 초기화 함수
 // ================================
 
-export async function initializeVectorStore(type: EmbeddingType): Promise<void> {
+export async function initializeVectorStore(
+  type: EmbeddingType
+): Promise<void> {
   // 이미 초기화되었으면 스킵
   if (isInitialized[type] && vectorStores[type]) {
     console.log(`[${type}] 벡터 스토어가 이미 초기화되어 있습니다.`);
@@ -156,6 +181,7 @@ ${query}
 `;
 
   // 3. LLM 호출 및 답변 생성 (Generation)
+  const llm = getLLM(embeddingType);
   const response = await llm.invoke(prompt);
 
   // 응답에서 텍스트 추출
